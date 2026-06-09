@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Attribute Reliability Tracker</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">🎯 Attribute Reliability Tracker</div>
+  <div class="subtitle" id="site-label">Loading...</div>
+</div>
+
+<!-- Run controls -->
+<div class="run-bar" id="run-bar">
+  <div class="run-status" id="run-status">
+    <span class="run-dot inactive" id="run-dot"></span>
+    <span id="run-label">No active run</span>
+  </div>
+  <div class="run-actions">
+    <button id="start-run-btn" class="btn-start">▶ Start Run</button>
+    <button id="stop-run-btn"  class="btn-stop" style="display:none">⏹ Stop Run</button>
+  </div>
+</div>
+
+<!-- Run history selector -->
+<div class="run-selector" id="run-selector" style="display:none">
+  <label for="run-select">Viewing run:</label>
+  <select id="run-select"></select>
+  <button id="delete-run-btn" class="btn-delete-run" title="Delete this run">🗑</button>
+</div>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="stat">
+    <span class="stat-value" id="session-count">—</span>
+    <span class="stat-label">Snapshots</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value reliable-count" id="reliable-count">—</span>
+    <span class="stat-label">Reliable</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value unreliable-count" id="unreliable-count">—</span>
+    <span class="stat-label">Unreliable</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value" id="last-updated">—</span>
+    <span class="stat-label">Last Seen</span>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" data-tab="reliable">✅ Reliable</button>
+  <button class="tab" data-tab="unreliable">⚠️ Unreliable</button>
+  <button class="tab" data-tab="all">📊 All Scores</button>
+</div>
+
+<!-- Search -->
+<div class="search-bar">
+  <input type="text" id="search-input" placeholder="Filter attributes..." />
+</div>
+
+<!-- Tab content -->
+<div id="tab-reliable" class="tab-content active">
+  <div class="section-info">Attributes with score ≥ 70 — safe to use as selectors</div>
+  <div id="reliable-list" class="attr-list"></div>
+</div>
+<div id="tab-unreliable" class="tab-content">
+  <div class="section-info">Attributes with score &lt; 40 — avoid using as selectors</div>
+  <div id="unreliable-list" class="attr-list"></div>
+</div>
+<div id="tab-all" class="tab-content">
+  <div class="section-info">All tracked attributes sorted by reliability score</div>
+  <div id="all-list" class="attr-list"></div>
+</div>
+
+<!-- No data -->
+  <div class="no-data" id="no-data" style="display:none">
+    <div class="no-data-icon">📡</div>
+    <div>No data yet for this site.</div>
+    <div class="no-data-hint">
+      Capture runs automatically in the background.<br>
+      Just browse normally — reload or navigate and data will appear here.<br>
+      Use <strong>▶ Start Run</strong> to begin a named recording session.
+    </div>
+  </div>
+
+<!-- Footer -->
+<div class="footer">
+  <button id="clear-btn" class="btn-clear">🗑 Clear All</button>
+  <button id="export-btn" class="btn-export">📋 Copy JSON</button>
+</div>
+
+<!-- Run name modal -->
+<div class="modal-overlay" id="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-title">Name this run</div>
+    <input type="text" id="run-name-input" placeholder="e.g. Checkout workflow" maxlength="40" />
+    <div class="modal-actions">
+      <button id="modal-cancel" class="btn-modal-cancel">Cancel</button>
+      <button id="modal-confirm" class="btn-modal-confirm">Start</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="popup.js"></script>
+</body>
+</html>
