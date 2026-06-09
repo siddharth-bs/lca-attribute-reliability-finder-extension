@@ -22,7 +22,6 @@ Built for QA engineers and developers who configure **Low Code Automation** tool
 - [File Reference](#file-reference)
 - [Known Limitations](#known-limitations)
 - [Contributing](#contributing)
-- [Pushing to GitHub](#pushing-to-github)
 
 ---
 
@@ -359,76 +358,6 @@ cd lca-attribute-reliability-finder-extension
 
 # Regenerate icons if needed
 python3 make_icons.py
-```
-
----
-
-## Pushing to GitHub
-
-### First-time setup
-
-```bash
-# 1. Initialize git (if not already done)
-cd /Users/siddharthsukhmoychakravarty/Desktop/extension
-git init
-
-# 2. Create a .gitignore
-cat > .gitignore << 'EOF'
-.DS_Store
-icons/.DS_Store
-*.pyc
-__pycache__/
-EOF
-
-# 3. Stage all files
-git add .
-
-# 4. Initial commit
-git commit -m "feat: initial release of Attribute Reliability Tracker extension"
-
-# 5. Create a new repo on GitHub (via CLI or browser)
-# Option A — GitHub CLI (recommended):
-gh repo create lca-attribute-reliability-finder-extension --public --description "Chrome extension that tracks DOM attribute stability to identify reliable vs unreliable selectors for test automation"
-
-# Option B — Browser:
-# Go to https://github.com/new, create repo named "lca-attribute-reliability-finder-extension"
-
-# 6. Add remote and push
-git remote add origin https://github.com/siddharth-bs/lca-attribute-reliability-finder-extension.git
-git branch -M main
-git push -u origin main
-```
-
-### Subsequent pushes
-
-```bash
-git add .
-git commit -m "fix: describe what you changed"
-git push
-```
-
-### Recommended branch strategy
-
-```bash
-# Feature work
-git checkout -b feat/element-level-scoring
-# ... make changes ...
-git add .
-git commit -m "feat: per-element fingerprint comparison"
-git push -u origin feat/element-level-scoring
-gh pr create --title "Per-element fingerprint comparison" --body "Replaces set-based comparison with per-element structural fingerprinting" --repo siddharth-bs/lca-attribute-reliability-finder-extension
-
-# Merge via GitHub PR, then clean up
-git checkout main
-git pull
-git branch -d feat/element-level-scoring
-```
-
-### Suggested tags for releases
-
-```bash
-git tag -a v1.0.0 -m "v1.0.0 — initial release"
-git push origin v1.0.0
 ```
 
 ---
