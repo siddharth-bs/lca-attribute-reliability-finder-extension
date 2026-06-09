@@ -73,7 +73,19 @@ const DYNAMIC_PATTERNS = [
   /^__[a-z0-9_]+__$/i,                                                     // framework internals
 ];
 function isDynamic(val) { return DYNAMIC_PATTERNS.some(re => re.test(val)); }
-function filterStable(values) { return values.filter(v => !isDynamic(v)); }
+
+// For multi-token attributes like class ("css-3f9a2b card-base card-elevated"),
+// check each space-separated token individually.
+// A value is considered dynamic if ANY token matches a dynamic pattern.
+function isValueDynamic(val) {
+  if (!val) return false;
+  const tokens = val.trim().split(/\s+/);
+  return tokens.some(t => isDynamic(t));
+}
+
+function filterStable(values) {
+  return values.filter(v => !isValueDynamic(v));
+}
 
 // ── Message router ────────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -245,7 +257,7 @@ async function processSnapshot(msg) {
 
     for (const [attr, rawVal] of Object.entries(attrMap)) {
       attrsSeenThisSnapshot.add(attr);
-      const effectiveVal = isDynamic(rawVal) ? null : rawVal;  // null = dynamic
+      const effectiveVal = isValueDynamic(rawVal) ? null : rawVal;  // null = dynamic
       const allDynamic   = effectiveVal === null;
 
       if (!page.attributes[attr]) {
@@ -275,7 +287,7 @@ async function processSnapshot(msg) {
       // If the element didn't exist in prev snapshot, skip (no comparison possible).
       if (!isFirst && prevAttrMap !== null && prevAttrMap[attr] !== undefined) {
         const prevVal     = prevAttrMap[attr];
-        const prevDynamic = isDynamic(prevVal);
+        const prevDynamic = isValueDynamic(prevVal);
 
         if (allDynamic && prevDynamic) {
           // Both dynamic — count as changed (dynamic values are unreliable)
