@@ -196,8 +196,8 @@ prev_snapshots: {
 
 1. **Clone or download this repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/attribute-reliability-tracker.git
-   cd attribute-reliability-tracker
+   git clone https://github.com/siddharth-bs/lca-attribute-reliability-finder-extension.git
+   cd lca-attribute-reliability-finder-extension
    ```
 
 2. **Open Chrome Extensions**
@@ -351,8 +351,8 @@ Paste this directly into your Low Code Automation tool's selector preference con
 
 ```bash
 # Clone
-git clone https://github.com/YOUR_USERNAME/attribute-reliability-tracker.git
-cd attribute-reliability-tracker
+git clone https://github.com/siddharth-bs/lca-attribute-reliability-finder-extension.git
+cd lca-attribute-reliability-finder-extension
 
 # Make changes to extension files
 # Reload the extension in chrome://extensions after each change
@@ -388,13 +388,13 @@ git commit -m "feat: initial release of Attribute Reliability Tracker extension"
 
 # 5. Create a new repo on GitHub (via CLI or browser)
 # Option A — GitHub CLI (recommended):
-gh repo create attribute-reliability-tracker --public --description "Chrome extension that tracks DOM attribute stability to identify reliable vs unreliable selectors for test automation"
+gh repo create lca-attribute-reliability-finder-extension --public --description "Chrome extension that tracks DOM attribute stability to identify reliable vs unreliable selectors for test automation"
 
 # Option B — Browser:
-# Go to https://github.com/new, create repo named "attribute-reliability-tracker"
+# Go to https://github.com/new, create repo named "lca-attribute-reliability-finder-extension"
 
 # 6. Add remote and push
-git remote add origin https://github.com/YOUR_USERNAME/attribute-reliability-tracker.git
+git remote add origin https://github.com/siddharth-bs/lca-attribute-reliability-finder-extension.git
 git branch -M main
 git push -u origin main
 ```
@@ -416,7 +416,7 @@ git checkout -b feat/element-level-scoring
 git add .
 git commit -m "feat: per-element fingerprint comparison"
 git push -u origin feat/element-level-scoring
-gh pr create --title "Per-element fingerprint comparison" --body "Replaces set-based comparison with per-element structural fingerprinting"
+gh pr create --title "Per-element fingerprint comparison" --body "Replaces set-based comparison with per-element structural fingerprinting" --repo siddharth-bs/lca-attribute-reliability-finder-extension
 
 # Merge via GitHub PR, then clean up
 git checkout main
