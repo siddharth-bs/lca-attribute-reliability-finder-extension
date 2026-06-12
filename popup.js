@@ -71,8 +71,10 @@ function renderRun(runId) {
 
   document.getElementById('reliable-count').textContent   = reliable.length;
   document.getElementById('unreliable-count').textContent = unreliable.length;
-  document.getElementById('last-updated').textContent     = run.endedAt
-    ? formatTime(run.endedAt) : run.startedAt ? formatTime(run.startedAt) : '—';
+  // Use lastUpdated (set on every snapshot) for accurate "last seen" time.
+  // Fall back to endedAt, then startedAt if lastUpdated isn't present.
+  const lastTs = run.lastUpdated || run.endedAt || run.startedAt;
+  document.getElementById('last-updated').textContent = lastTs ? formatTime(lastTs) : '—';
 
   renderList('reliable-list',   reliable);
   renderList('unreliable-list', unreliable);

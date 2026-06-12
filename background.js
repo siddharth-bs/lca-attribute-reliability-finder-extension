@@ -228,6 +228,9 @@ async function processSnapshot(msg) {
   const runId = all[host].activeRunId;
   const run   = all[host].runs[runId];
 
+  // Update lastUpdated on every snapshot so popup shows accurate "last seen" time
+  run.lastUpdated = timestamp;
+
   // Per-path page data
   if (!run.pages[path]) run.pages[path] = { snapshotCount: 0, attributes: {} };
   const page = run.pages[path];
