@@ -49,8 +49,6 @@ let idleTimer                  = null;
 let hardCapTimer               = null;
 let mutDebounceTimer           = null;
 let mutCount                   = 0;
-// Track the URL at script injection time to detect replaceState-during-load
-const initialUrl = location.href;
 let navigationReady = false;  // true after first page snapshot fires
 
 // ── Element fingerprint ───────────────────────────────────────────────────────
@@ -67,7 +65,7 @@ function getFingerprint(el) {
     }
     parts.unshift(`${tag}[${idx}]`);
     node = parent;
-    if (parts.length > 6) break;
+    if (parts.length > 10) break;  // increased from 6 to reduce fingerprint collisions on deep DOMs
   }
   return parts.join('>');
 }
@@ -118,7 +116,9 @@ const idleObserver = new MutationObserver(() => {
 
 function startIdleDetection() {
   if (!document.body) return;
-  idleObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+  // attributes: false — we only need structural settlement, not attribute changes.
+  // Observing attributes causes CSS animations/hover states to reset the idle timer.
+  idleObserver.observe(document.body, { childList: true, subtree: true });
   // Idle timer: fires if DOM is already quiet
   clearTimeout(idleTimer);
   idleTimer = setTimeout(firePageSnapshot, DOM_IDLE_MS);

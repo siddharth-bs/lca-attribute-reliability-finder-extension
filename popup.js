@@ -15,7 +15,13 @@ async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url) return showNoData();
   try {
-    currentHost = new URL(tab.url).hostname;
+    const parsed = new URL(tab.url);
+    // Don't track browser-internal pages
+    if (['chrome:', 'chrome-extension:', 'about:', 'edge:'].includes(parsed.protocol)) {
+      document.getElementById('site-label').textContent = 'Not available on this page';
+      return showNoData();
+    }
+    currentHost = parsed.hostname;
     document.getElementById('site-label').textContent = currentHost;
   } catch { return showNoData(); }
   loadData();
@@ -270,9 +276,10 @@ function escHtml(str) {
 
 function formatTime(ts) {
   const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60) return diff + 's ago';
-  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-  return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 60)    return diff + 's ago';
+  if (diff < 3600)  return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
 }
 
 function showToast(msg) {

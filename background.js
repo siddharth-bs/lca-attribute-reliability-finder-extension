@@ -154,13 +154,23 @@ async function startRun(host, name) {
 }
 
 async function stopRun(host) {
-  const r   = await chrome.storage.local.get(RUNS_KEY);
-  const all = r[RUNS_KEY] || {};
+  const [r, p] = await Promise.all([
+    chrome.storage.local.get(RUNS_KEY),
+    chrome.storage.local.get(PREV_KEY)
+  ]);
+  const all  = r[RUNS_KEY] || {};
+  const prev = p[PREV_KEY] || {};
   if (!all[host]?.activeRunId) return;
-  const run = all[host].runs[all[host].activeRunId];
+  const stoppedRunId = all[host].activeRunId;
+  const run = all[host].runs[stoppedRunId];
   if (run && !run.endedAt) run.endedAt = Date.now();
   all[host].activeRunId = null;
-  await chrome.storage.local.set({ [RUNS_KEY]: all });
+  // Clean up prev_snapshots for this run — no longer needed for comparison
+  if (prev[host]) delete prev[host][stoppedRunId];
+  await Promise.all([
+    chrome.storage.local.set({ [RUNS_KEY]: all }),
+    chrome.storage.local.set({ [PREV_KEY]: prev })
+  ]);
   // Stop keep-alive if no other hosts have active runs
   const anyActive = Object.values(all).some(h => h.activeRunId);
   if (!anyActive) stopKeepAlive();
@@ -268,12 +278,15 @@ async function processSnapshot(msg) {
           seenCount: 0, stableCount: 0, changedCount: 0,
           uniqueValueCount: 0, uniqueValuesSet: [],
           firstSeenSnapshot: page.snapshotCount,
-          allDynamic: false, score: 50
+          dynamicObservations: 0, stableObservations: 0,  // for allDynamic calculation
+          score: 50
         };
       }
       const stat = page.attributes[attr];
+      // seenCount tracks element-level occurrences (consistent with stableCount/changedCount)
       stat.seenCount += 1;
-      if (allDynamic) stat.allDynamic = true;
+      if (allDynamic) stat.dynamicObservations += 1;
+      else stat.stableObservations += 1;
 
       // Track unique stable values
       if (!allDynamic) {
@@ -315,7 +328,10 @@ async function processSnapshot(msg) {
   // Recalculate scores for all attrs seen this snapshot
   for (const attr of attrsSeenThisSnapshot) {
     if (page.attributes[attr]) {
-      page.attributes[attr].score = calculateScore(page.attributes[attr], page.snapshotCount);
+      const stat = page.attributes[attr];
+      // allDynamic: true only if EVERY observation was dynamic (no stable values ever seen)
+      stat.allDynamic = stat.dynamicObservations > 0 && stat.stableObservations === 0;
+      stat.score = calculateScore(stat, page.snapshotCount);
     }
   }
 
@@ -352,7 +368,10 @@ function aggregatePages(pages) {
   const attrPageScores = {};  // attr -> [{ score, weight }]
 
   for (const page of Object.values(pages)) {
-    const w = page.snapshotCount;  // weight = number of snapshots on this page
+    const w = page.snapshotCount;
+    // Skip pages with insufficient data — their score is 50 (neutral) and
+    // would dilute the weighted average without contributing real signal.
+    if (w < MIN_SNAPS) continue;
     for (const [attr, stat] of Object.entries(page.attributes)) {
       if (!attrPageScores[attr]) attrPageScores[attr] = [];
       attrPageScores[attr].push({ score: stat.score, weight: w, stat });
