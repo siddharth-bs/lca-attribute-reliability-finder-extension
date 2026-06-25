@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Metrics Dashboard — Demo</title>
+  <link rel="stylesheet" href="../shared/base.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="site-nav" id="main-nav" role="navigation" aria-label="Dashboard navigation">
+    <div class="container inner">
+      <span class="nav-brand" id="brand" data-testid="brand" aria-label="Metrics dashboard brand">📊 MetricsHQ</span>
+      <a href="#/overview"  class="nav-link active" id="nav-overview"  data-testid="nav-overview"  aria-label="Go to overview">Overview</a>
+      <a href="#/analytics" class="nav-link"         id="nav-analytics" data-testid="nav-analytics" aria-label="Go to analytics">Analytics</a>
+      <a href="#/reports"   class="nav-link"         id="nav-reports"   data-testid="nav-reports"   aria-label="Go to reports">Reports</a>
+      <a href="#/settings"  class="nav-link"         id="nav-settings"  data-testid="nav-settings"  aria-label="Go to settings">Settings</a>
+      <div class="nav-spacer"></div>
+      <select id="date-range" name="dateRange" data-testid="date-range" aria-label="Select date range" class="form-input" style="width:160px">
+        <option value="7d">Last 7 days</option>
+        <option value="30d" selected>Last 30 days</option>
+        <option value="90d">Last 90 days</option>
+        <option value="1y">Last year</option>
+      </select>
+      <button id="export-report-btn" name="exportReport" type="button" data-testid="export-report-btn" aria-label="Export report" role="button" class="btn btn-secondary btn-sm" style="margin-left:8px">Export</button>
+    </div>
+  </nav>
+
+  <main id="dash-root" role="main" aria-label="Dashboard main content"></main>
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

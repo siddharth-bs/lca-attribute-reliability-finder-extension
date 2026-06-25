@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Demo Sites — Attribute Reliability Tracker</title>
+  <link rel="stylesheet" href="shared/base.css" />
+</head>
+<body>
+  <nav class="site-nav">
+    <div class="container inner">
+      <span class="nav-brand">🎯 ART Demo Sites</span>
+    </div>
+  </nav>
+  <div class="container page-content">
+    <h1 style="margin-bottom:8px">Demo Sites</h1>
+    <p style="margin-bottom:32px">Each site is designed to test specific features of the Attribute Reliability Tracker extension. Start a run in the extension popup before visiting each site.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-body">
+          <h2 style="margin-bottom:8px">🛍 Lumina Store</h2>
+          <p style="margin-bottom:12px">Full e-commerce SPA with 6 routes: Home, Products, Product Detail, Cart, Checkout, Account, Login.</p>
+          <div style="margin-bottom:16px">
+            <span class="badge badge-green" style="margin-right:4px">Tests: SPA navigation</span>
+            <span class="badge badge-green" style="margin-right:4px">Auto-refresh</span>
+            <span class="badge badge-blue">Reliable vs Unreliable</span>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:16px"><strong>Stable:</strong> id, data-testid, name, type, aria-label, placeholder<br><strong>Dynamic:</strong> class (CSS-in-JS), data-render-id, data-ts</p>
+          <a href="ecommerce/index.html" class="btn btn-primary" aria-label="Open Lumina Store demo">Open Store →</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <h2 style="margin-bottom:8px">📊 MetricsHQ Dashboard</h2>
+          <p style="margin-bottom:12px">Analytics dashboard SPA with 4 routes: Overview, Analytics, Reports, Settings.</p>
+          <div style="margin-bottom:16px">
+            <span class="badge badge-green" style="margin-right:4px">Tests: SPA navigation</span>
+            <span class="badge badge-yellow" style="margin-right:4px">Form attrs</span>
+            <span class="badge badge-blue">Dynamic charts</span>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:16px"><strong>Stable:</strong> id, name, aria-label, data-testid, type<br><strong>Dynamic:</strong> class, data-render-id, chart data</p>
+          <a href="dashboard/index.html" class="btn btn-primary" aria-label="Open MetricsHQ dashboard demo">Open Dashboard →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:24px">
+      <div class="card-body">
+        <h2 style="margin-bottom:12px">📋 How to Use These Demo Sites</h2>
+        <ol style="color:var(--muted);font-size:13px;line-height:2.2;padding-left:20px">
+          <li>Make sure the <strong>Attribute Reliability Tracker</strong> extension is loaded at <code>chrome://extensions</code></li>
+          <li>Click the 🎯 icon in the toolbar → click <strong>▶ Start Run</strong> → name it (e.g. "Lumina Store Test")</li>
+          <li>Open one of the demo sites above</li>
+          <li>The extension will auto-refresh each page 4× — wait for the overlay to complete on each page</li>
+          <li>Navigate through all routes (Home → Products → Cart → Checkout → Account)</li>
+          <li>Click <strong>⏹ Stop Run</strong> in the popup when done</li>
+          <li>View the results — <strong>Reliable tab</strong> should show: <code>id</code>, <code>data-testid</code>, <code>aria-label</code>, <code>name</code>, <code>type</code></li>
+          <li>Click <strong>📋 Copy JSON</strong> to export with per-page score breakdown</li>
+          <li>Click any attribute row to copy its name to clipboard</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

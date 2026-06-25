@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lumina Store — Demo E-Commerce</title>
+  <link rel="stylesheet" href="../shared/base.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="site-nav" id="main-nav" role="navigation" aria-label="Main navigation">
+    <div class="container inner">
+      <a href="#/" class="nav-brand" id="brand-logo" data-testid="brand-logo" aria-label="Lumina Store home">✦ Lumina</a>
+      <a href="#/" class="nav-link" id="nav-home" data-testid="nav-home" aria-label="Go to home page">Home</a>
+      <a href="#/products" class="nav-link" id="nav-products" data-testid="nav-products" aria-label="Browse products">Products</a>
+      <a href="#/cart" class="nav-link" id="nav-cart" data-testid="nav-cart" aria-label="View shopping cart">Cart <span id="cart-count" data-testid="cart-count" class="badge badge-blue">0</span></a>
+      <a href="#/account" class="nav-link" id="nav-account" data-testid="nav-account" aria-label="My account">Account</a>
+      <div class="nav-spacer"></div>
+      <input id="search-box" name="search" type="search" data-testid="search-box" placeholder="Search products..." aria-label="Search products" autocomplete="off" class="nav-search" />
+    </div>
+  </nav>
+
+  <main id="app-root" role="main" aria-label="Main content area"></main>
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

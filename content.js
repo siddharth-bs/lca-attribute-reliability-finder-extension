@@ -138,7 +138,11 @@ function sendSnapshot(reason, onDone) {
     const host = getEffectiveHost(rawHost, settings);
     const now  = Date.now();
     lastSnapshotTime = now;
-    const path = window.location.pathname || '/';
+    // Include hash for SPA routes (e.g. #/analytics, #/products)
+    // but exclude plain anchor links (#section-id) which are not routes
+    const hash = window.location.hash;
+    const isRoute = hash && hash.length > 1 && hash.includes('/');
+    const path = (window.location.pathname || '/') + (isRoute ? hash : '');
     const msg  = { type: 'SNAPSHOT', host, path, snapshot: collectSnapshot(), timestamp: now, reason };
 
     function trySend(left) {
