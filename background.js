@@ -122,6 +122,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (msg.type === 'SETTINGS_CHANGED') {
+    // No-op in background — settings are read directly by content scripts
+    sendResponse({ ok: true });
+    return false;
+  }
 });
 
 // ── Run management ────────────────────────────────────────────────────────────
@@ -222,17 +227,10 @@ async function processSnapshot(msg) {
 
   if (!all[host]) all[host] = { activeRunId: null, runs: {} };
 
-  // Auto-start a default run if none is active
+  // Only capture if user has explicitly started a run — no auto-start
   if (!all[host].activeRunId) {
-    const runId  = `run_${Date.now()}`;
-    const runNum = Object.keys(all[host].runs).length + 1;
-    all[host].runs[runId] = {
-      id: runId, name: `Default Run ${runNum}`,
-      startedAt: timestamp, endedAt: null,
-      snapshotCount: 0, pages: {}, aggregated: {}
-    };
-    all[host].activeRunId = runId;
-    startKeepAlive();
+    // No active run — silently drop this snapshot
+    return;
   }
 
   const runId = all[host].activeRunId;

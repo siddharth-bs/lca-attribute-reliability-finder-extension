@@ -2,16 +2,9 @@
  * Content Script — Attribute Reliability Tracker
  *
  * Capture triggers:
- *   1. Page load (full reload or new tab) — fires when DOM settles (idle detection)
+ *   1. Page load — auto-refreshes 4x on first visit to a new page (with overlay)
  *   2. SPA navigation (pushState / replaceState / popstate / hashchange)
  *   3. Significant DOM mutations after initial load (lazy content, modals, AJAX)
- *
- * Key design decisions:
- *   - "DOM idle" detection: snapshot fires when DOM stops mutating for 800ms
- *     (handles slow sites, SSR hydration, lazy loading)
- *   - Hard cap at 6s: if DOM never settles, snapshot anyway
- *   - replaceState during initial load is ignored (common in Next.js/React Router)
- *   - Per-element structural fingerprint sent with each snapshot
  */
 
 const TRACKED_ATTRIBUTES = [
@@ -23,24 +16,19 @@ const TRACKED_ATTRIBUTES = [
   'selected', 'multiple', 'pattern', 'min', 'max', 'step', 'maxlength'
 ];
 
-const MAX_ELEMENTS = 500;
+const MAX_ELEMENTS    = 500;
+const AUTO_RELOAD_COUNT = 4;   // number of auto-reloads per new page
+const DOM_IDLE_MS     = 800;
+const DOM_MAX_WAIT_MS = 6000;
+const POST_SNAP_QUIET = 3000;
+const MUT_DEBOUNCE_MS = 2000;
+const MUT_THRESHOLD   = 5;
 
 const SKIP_TAGS = new Set([
   'script', 'style', 'head', 'meta', 'link', 'noscript',
   'template', 'svg', 'path', 'defs', 'symbol', 'use',
   'br', 'hr', 'wbr'
 ]);
-
-// DOM idle: snapshot fires after DOM is quiet for this long
-const DOM_IDLE_MS      = 800;
-// Hard cap: snapshot fires at most this long after DOMContentLoaded
-const DOM_MAX_WAIT_MS  = 6000;
-// After a snapshot, suppress mutation observer for this long
-const POST_SNAP_QUIET  = 3000;
-// Mutation observer debounce
-const MUT_DEBOUNCE_MS  = 2000;
-// Min nodes added to trigger a mutation snapshot
-const MUT_THRESHOLD    = 5;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let snapshotSentForCurrentPage = false;
@@ -49,7 +37,39 @@ let idleTimer                  = null;
 let hardCapTimer               = null;
 let mutDebounceTimer           = null;
 let mutCount                   = 0;
-let navigationReady = false;  // true after first page snapshot fires
+let navigationReady            = false;
+
+// ── Overlay ───────────────────────────────────────────────────────────────────
+let overlayEl = null;
+
+function showOverlay(current, total) {
+  if (!overlayEl) {
+    overlayEl = document.createElement('div');
+    overlayEl.id = '__art_overlay__';
+    overlayEl.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:2147483647',
+      'background:rgba(15,17,23,0.92)', 'display:flex',
+      'flex-direction:column', 'align-items:center', 'justify-content:center',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+      'color:#e2e8f0', 'gap:16px', 'backdrop-filter:blur(4px)'
+    ].join(';');
+    document.documentElement.appendChild(overlayEl);
+  }
+  const pct = Math.round((current / total) * 100);
+  overlayEl.innerHTML = `
+    <div style="font-size:28px">🎯</div>
+    <div style="font-size:16px;font-weight:700;color:#fff">Attribute Reliability Tracker</div>
+    <div style="font-size:13px;color:#a0aec0">Analysing page attributes — snapshot ${current} of ${total}</div>
+    <div style="width:220px;height:6px;background:#2d3748;border-radius:3px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:#63b3ed;border-radius:3px;transition:width 0.3s"></div>
+    </div>
+    <div style="font-size:11px;color:#4a5568">Please wait — do not navigate away</div>
+  `;
+}
+
+function hideOverlay() {
+  if (overlayEl) { overlayEl.remove(); overlayEl = null; }
+}
 
 // ── Element fingerprint ───────────────────────────────────────────────────────
 function getFingerprint(el) {
@@ -65,7 +85,7 @@ function getFingerprint(el) {
     }
     parts.unshift(`${tag}[${idx}]`);
     node = parent;
-    if (parts.length > 10) break;  // increased from 6 to reduce fingerprint collisions on deep DOMs
+    if (parts.length > 10) break;
   }
   return parts.join('>');
 }
@@ -88,41 +108,110 @@ function collectSnapshot() {
   return snapshot;
 }
 
-function sendSnapshot(reason) {
-  const host = window.location.hostname;
-  if (!host || host === 'newtab') return;
-
-  const now  = Date.now();
-  lastSnapshotTime = now;
-  const path = window.location.pathname || '/';
-  const msg  = { type: 'SNAPSHOT', host, path, snapshot: collectSnapshot(), timestamp: now, reason };
-
-  function trySend(left) {
-    chrome.runtime.sendMessage(msg, () => {
-      if (chrome.runtime.lastError && left > 0) setTimeout(() => trySend(left - 1), 600);
-    });
+// ── Extension context guard ───────────────────────────────────────────────────
+// After an extension reload/update, the content script's chrome.* APIs become
+// invalid. Wrap every chrome.* call with this check to prevent uncaught errors.
+function isContextValid() {
+  try {
+    return !!(chrome && chrome.runtime && chrome.runtime.id);
+  } catch {
+    return false;
   }
-  trySend(2);
+}
+
+function getEffectiveHost(hostname, settings) {
+  if (!settings.groupSubdomains) return hostname;
+  const parts = hostname.split('.');
+  // Keep last 2 parts (example.com), or full hostname if already short
+  return parts.length > 2 ? parts.slice(-2).join('.') : hostname;
+}
+
+function sendSnapshot(reason, onDone) {
+  if (!isContextValid()) { onDone?.(); return; }
+  const rawHost = window.location.hostname;
+  if (!rawHost || rawHost === 'newtab') { onDone?.(); return; }
+
+  // Read settings to apply subdomain grouping and check if capture is allowed
+  chrome.storage.local.get('art_settings', (r) => {
+    if (!isContextValid()) { onDone?.(); return; }
+    const settings = (r && r['art_settings']) || {};
+    const host = getEffectiveHost(rawHost, settings);
+    const now  = Date.now();
+    lastSnapshotTime = now;
+    const path = window.location.pathname || '/';
+    const msg  = { type: 'SNAPSHOT', host, path, snapshot: collectSnapshot(), timestamp: now, reason };
+
+    function trySend(left) {
+      chrome.runtime.sendMessage(msg, (res) => {
+        if (chrome.runtime.lastError && left > 0) {
+          setTimeout(() => trySend(left - 1), 600);
+        } else {
+          onDone?.();
+        }
+      });
+    }
+    trySend(2);
+  });
+}
+
+// ── Auto-refresh logic ────────────────────────────────────────────────────────
+// Uses sessionStorage (always available in content scripts, cleared on tab close)
+// Key: __art_N__ where N = hostname+pathname, value = reload count done so far
+
+function getPageKey() {
+  return '__art_' + window.location.hostname + window.location.pathname + '__';
+}
+
+function handleAutoRefresh(onComplete) {
+  if (!isContextValid()) { onComplete(); return; }
+  const rawHost = window.location.hostname;
+  if (!rawHost || rawHost === 'newtab') { onComplete(); return; }
+
+  // First check if a run is active for this host — if not, skip everything
+  chrome.storage.local.get(['art_settings', 'runs_data'], (r) => {
+    if (!isContextValid()) { onComplete(); return; }
+    const settings = (r && r['art_settings']) || {};
+    const host     = getEffectiveHost(rawHost, settings);
+    const runsData = (r && r['runs_data']) || {};
+    const hostData = runsData[host];
+    const hasActiveRun = !!(hostData && hostData.activeRunId);
+
+    if (!hasActiveRun) {
+      // No active run — don't auto-refresh, just let the page load normally
+      onComplete();
+      return;
+    }
+
+    const key  = getPageKey();
+    const done = parseInt(sessionStorage.getItem(key) || '0', 10);
+
+    if (done >= AUTO_RELOAD_COUNT) {
+      // All reloads done — capture final snapshot and let user browse freely
+      sessionStorage.removeItem(key);
+      sendSnapshot('page-load', () => onComplete());
+      return;
+    }
+
+    // Active run exists — show overlay, capture, then reload
+    showOverlay(done + 1, AUTO_RELOAD_COUNT);
+    sendSnapshot('auto-refresh', () => {
+      sessionStorage.setItem(key, String(done + 1));
+      setTimeout(() => { location.reload(); }, 700);
+    });
+  });
 }
 
 // ── DOM idle detection ────────────────────────────────────────────────────────
-// Watches DOM mutations and fires snapshot once DOM is quiet for DOM_IDLE_MS.
-// Hard cap ensures snapshot fires even on infinitely-loading pages.
 const idleObserver = new MutationObserver(() => {
-  // Reset idle timer on every mutation
   clearTimeout(idleTimer);
   idleTimer = setTimeout(firePageSnapshot, DOM_IDLE_MS);
 });
 
 function startIdleDetection() {
   if (!document.body) return;
-  // attributes: false — we only need structural settlement, not attribute changes.
-  // Observing attributes causes CSS animations/hover states to reset the idle timer.
   idleObserver.observe(document.body, { childList: true, subtree: true });
-  // Idle timer: fires if DOM is already quiet
   clearTimeout(idleTimer);
   idleTimer = setTimeout(firePageSnapshot, DOM_IDLE_MS);
-  // Hard cap: fire no matter what after DOM_MAX_WAIT_MS
   clearTimeout(hardCapTimer);
   hardCapTimer = setTimeout(firePageSnapshot, DOM_MAX_WAIT_MS);
 }
@@ -133,10 +222,15 @@ function firePageSnapshot() {
   clearTimeout(idleTimer);
   clearTimeout(hardCapTimer);
   idleObserver.disconnect();
-  sendSnapshot('page-load');
-  navigationReady = true;
-  // Start mutation observer for post-load dynamic content after quiet period
-  setTimeout(startMutationObserver, POST_SNAP_QUIET);
+
+  // handleAutoRefresh calls onComplete() when all reloads are done (no more reloads needed)
+  // It does NOT call onComplete() when it's about to reload the page
+  handleAutoRefresh(() => {
+    // All reloads done — hide overlay, mark ready, start mutation observer
+    hideOverlay();
+    navigationReady = true;
+    setTimeout(startMutationObserver, POST_SNAP_QUIET);
+  });
 }
 
 // ── 1. Page load ──────────────────────────────────────────────────────────────
@@ -145,7 +239,6 @@ function initPageLoad() {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => startIdleDetection());
   } else {
-    // DOM already ready (script injected late, or readyState is interactive/complete)
     startIdleDetection();
   }
 }
@@ -158,25 +251,18 @@ let lastUrl = location.href;
 function onUrlChange() {
   const current = location.href;
   if (current === lastUrl) return;
-
-  // Ignore replaceState calls that happen during initial page load
-  // (common in Next.js, React Router, Vue Router during hydration)
   if (!navigationReady && current.split('?')[0] === lastUrl.split('?')[0]) return;
 
   lastUrl = current;
   snapshotSentForCurrentPage = false;
   navigationReady = false;
 
-  // Stop post-load mutation observer during navigation
   mutObserver.disconnect();
   clearTimeout(mutDebounceTimer);
-
-  // Use idle detection for the new route too (handles slow SPA route renders)
   idleObserver.disconnect();
   clearTimeout(idleTimer);
   clearTimeout(hardCapTimer);
 
-  // Wait a tick for the router to update the DOM, then start idle detection
   setTimeout(() => {
     if (document.body) startIdleDetection();
   }, 100);
@@ -190,8 +276,6 @@ window.addEventListener('popstate',   onUrlChange);
 window.addEventListener('hashchange', onUrlChange);
 
 // ── 3. Post-load mutation observer ───────────────────────────────────────────
-// Only active after the initial page snapshot has fired.
-// Captures lazy-loaded content, modals, AJAX updates.
 const mutObserver = new MutationObserver((mutations) => {
   if (Date.now() - lastSnapshotTime < POST_SNAP_QUIET) return;
   let added = 0;

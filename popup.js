@@ -10,22 +10,6 @@ let allAttributes  = [];
 let hostData       = null;   // { activeRunId, runs: {} }
 let viewingRunId   = null;   // which run is shown in the UI
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-async function init() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url) return showNoData();
-  try {
-    const parsed = new URL(tab.url);
-    // Don't track browser-internal pages
-    if (['chrome:', 'chrome-extension:', 'about:', 'edge:'].includes(parsed.protocol)) {
-      document.getElementById('site-label').textContent = 'Not available on this page';
-      return showNoData();
-    }
-    currentHost = parsed.hostname;
-    document.getElementById('site-label').textContent = currentHost;
-  } catch { return showNoData(); }
-  loadData();
-}
 
 function loadData() {
   chrome.runtime.sendMessage({ type: 'GET_RUNS', host: currentHost }, (res) => {
@@ -107,6 +91,16 @@ function buildAttrItem(attr) {
   const item = document.createElement('div');
   item.className = 'attr-item';
   item.dataset.name = attr.name;
+  item.title = 'Click to copy attribute name';
+  item.style.cursor = 'pointer';
+
+  // Tap-to-copy: clicking anywhere on the row copies the attribute name
+  item.addEventListener('click', () => {
+    navigator.clipboard.writeText(attr.name).then(() => {
+      showToast(`Copied: ${attr.name}`);
+    });
+  });
+
   item.innerHTML = `
     <div class="attr-name">${escHtml(attr.name)}</div>
     <div class="score-bar-wrap">
@@ -247,10 +241,38 @@ document.getElementById('clear-btn').addEventListener('click', () => {
 
 // ── Export ────────────────────────────────────────────────────────────────────
 document.getElementById('export-btn').addEventListener('click', () => {
-  const reliable   = allAttributes.filter(a => a.score >= RELIABLE_THRESHOLD).map(a => ({ attribute: a.name, score: a.score }));
-  const unreliable = allAttributes.filter(a => a.score < UNRELIABLE_THRESHOLD).map(a => ({ attribute: a.name, score: a.score }));
-  const moderate   = allAttributes.filter(a => a.score >= UNRELIABLE_THRESHOLD && a.score < RELIABLE_THRESHOLD).map(a => ({ attribute: a.name, score: a.score }));
   const run = hostData?.runs?.[viewingRunId];
+
+  // Build per-page breakdown for each attribute from run.pages
+  function getPageBreakdown(attrName) {
+    if (!run?.pages) return {};
+    const breakdown = {};
+    for (const [path, page] of Object.entries(run.pages)) {
+      const stat = page.attributes?.[attrName];
+      if (stat) {
+        breakdown[path] = {
+          score: stat.score,
+          snapshots: page.snapshotCount,
+          seenCount: stat.seenCount,
+          changedCount: stat.changedCount
+        };
+      }
+    }
+    return breakdown;
+  }
+
+  function buildEntry(a) {
+    return {
+      attribute: a.name,
+      overallScore: a.score,
+      pageBreakdown: getPageBreakdown(a.name)
+    };
+  }
+
+  const reliable   = allAttributes.filter(a => a.score >= RELIABLE_THRESHOLD).map(buildEntry);
+  const unreliable = allAttributes.filter(a => a.score < UNRELIABLE_THRESHOLD).map(buildEntry);
+  const moderate   = allAttributes.filter(a => a.score >= UNRELIABLE_THRESHOLD && a.score < RELIABLE_THRESHOLD).map(buildEntry);
+
   const payload = JSON.stringify({
     host: currentHost,
     run: run ? { name: run.name, snapshots: run.snapshotCount } : null,
@@ -289,4 +311,60 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+// ── Settings ──────────────────────────────────────────────────────────────────
+const SETTINGS_KEY = 'art_settings';
+
+function loadSettings(cb) {
+  chrome.storage.local.get(SETTINGS_KEY, (r) => {
+    cb(r[SETTINGS_KEY] || { groupSubdomains: false });
+  });
+}
+
+function saveSettings(settings) {
+  chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+  chrome.runtime.sendMessage({ type: 'SETTINGS_CHANGED', settings });
+}
+
+function initSettings() {
+  loadSettings((settings) => {
+    const subEl = document.getElementById('subdomain-toggle');
+    if (subEl) subEl.checked = !!settings.groupSubdomains;
+
+    subEl?.addEventListener('change', () => {
+      loadSettings((s) => {
+        s.groupSubdomains = subEl.checked;
+        saveSettings(s);
+        showToast(subEl.checked ? 'Subdomains grouped' : 'Subdomains separated');
+        setTimeout(() => init(), 300);
+      });
+    });
+
+  });
+}
+
+// ── Init (overridden to apply subdomain grouping) ─────────────────────────────
+async function init() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url) return showNoData();
+  try {
+    const parsed = new URL(tab.url);
+    if (['chrome:', 'chrome-extension:', 'about:', 'edge:'].includes(parsed.protocol)) {
+      document.getElementById('site-label').textContent = 'Not available on this page';
+      return showNoData();
+    }
+    loadSettings((settings) => {
+      let hostname = parsed.hostname;
+      if (settings.groupSubdomains) {
+        const parts = hostname.split('.');
+        hostname = parts.length > 2 ? parts.slice(-2).join('.') : hostname;
+      }
+      currentHost = hostname;
+      document.getElementById('site-label').textContent =
+        parsed.hostname + (settings.groupSubdomains && hostname !== parsed.hostname ? ` → ${hostname}` : '');
+      loadData();
+    });
+  } catch { return showNoData(); }
+}
+
+initSettings();
 init();
